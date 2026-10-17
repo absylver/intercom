@@ -62,7 +62,7 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        window.statusBarColor = Color.parseColor("#020617")
+        window.statusBarColor = Color.parseColor("#2D2B50")
 
         status = findViewById(R.id.status)
         mark = findViewById(R.id.mark)
@@ -139,7 +139,7 @@ class MainActivity : AppCompatActivity() {
                                         discoveredHost = host
                                         discoveredPort = port
                                         found.text = "✓ Found the control laptop${if (label.isNotEmpty()) " ($label)" else ""} at $host"
-                                        found.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.ok))
+                                        found.setTextColor(ContextCompat.getColor(this@MainActivity, R.color.green))
                                     }
                                 }
                             } catch (_: SocketTimeoutException) {
@@ -256,16 +256,20 @@ class MainActivity : AppCompatActivity() {
             !s.connected -> "Reconnecting to ${s.host}…"
             else -> "Connected to ${s.host}"
         }
-        dirState.text = "DIRECTOR\n${if (s.directorOnline) "Online" else "Offline"}"
-        voiceState.text = "VOICE\n${if (s.voiceLive) "Live" else if (s.directorOnline) "Linking…" else "—"}"
+        dirState.text = stat("DIRECTOR", if (s.directorOnline) "Online" else "Offline")
+        voiceState.text = stat("VOICE", if (s.voiceLive) "Live" else if (s.directorOnline) "Linking…" else "—")
 
         incoming.text = when {
             s.muted -> "MUTED BY DIRECTOR"
             s.directorTalking -> "DIRECTOR SPEAKING"
             else -> "STANDBY"
         }
+        incoming.setBackgroundResource(if (s.directorTalking) R.drawable.pill_live else R.drawable.pill)
         incoming.setTextColor(
-            ContextCompat.getColor(this, if (s.directorTalking) R.color.ok else if (s.muted) R.color.warn else R.color.muted)
+            ContextCompat.getColor(
+                this,
+                if (s.directorTalking) R.color.onGrad else if (s.muted) R.color.warn else R.color.muted,
+            )
         )
         ptt.isActivated = s.talking
         ptt.text = when {
@@ -281,6 +285,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     /* ---------------- Helpers ---------------- */
+
+    /** Small muted label over a big value, like the sample's stat tiles. */
+    private fun stat(label: String, value: String): CharSequence {
+        val sb = android.text.SpannableStringBuilder()
+        sb.append(label)
+        sb.setSpan(android.text.style.RelativeSizeSpan(0.45f), 0, label.length, 0)
+        sb.setSpan(
+            android.text.style.ForegroundColorSpan(ContextCompat.getColor(this, R.color.muted)),
+            0, label.length, 0,
+        )
+        sb.append("\n").append(value)
+        return sb
+    }
 
     private fun hasPermission(p: String) =
         ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED

@@ -1,15 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Talking: solid gradient -->
     <item android:state_activated="true">
         <shape android:shape="oval">
-            <solid android:color="@color/brand" />
-            <stroke android:width="6dp" android:color="#FFFFFF" />
+            <gradient android:angle="315" android:startColor="@color/green" android:endColor="@color/blue" />
         </shape>
     </item>
+    <!-- Idle: dark disc with a thin gradient ring -->
     <item>
-        <shape android:shape="oval">
-            <solid android:color="#0B1224" />
-            <stroke android:width="5dp" android:color="@color/brand" />
-        </shape>
+        <layer-list>
+            <item>
+                <shape android:shape="oval">
+                    <gradient android:angle="315" android:startColor="@color/green" android:endColor="@color/blue" />
+                </shape>
+            </item>
+            <item android:left="3dp" android:top="3dp" android:right="3dp" android:bottom="3dp">
+                <shape android:shape="oval"><solid android:color="@color/panel" /></shape>
+            </item>
+        </layer-list>
     </item>
 </selector>

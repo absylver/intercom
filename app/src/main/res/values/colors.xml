@@ -1,12 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="bg">#020617</color>
-    <color name="panel">#0D1426</color>
-    <color name="line">#1E2840</color>
-    <color name="brand">#5B8DEF</color>
-    <color name="accent">#8B78F6</color>
-    <color name="ink">#EEF2FB</color>
-    <color name="muted">#93A2C4</color>
-    <color name="ok">#34D399</color>
-    <color name="warn">#F59E0B</color>
+    <color name="bg">#2D2B50</color>
+    <color name="panel">#2A2849</color>
+    <color name="panel2">#322F57</color>
+    <color name="inset">#23213F</color>
+    <color name="green">#5AF0A2</color>
+    <color name="blue">#4A52F5</color>
+    <color name="ink">#FFFFFF</color>
+    <color name="muted">#A7A5CF</color>
+    <color name="faint">#6F6C9C</color>
+    <color name="ok">#5AF0A2</color>
+    <color name="warn">#F7B955</color>
+    <color name="onGrad">#12142E</color>
+    <!-- legacy names -->
+    <color name="brand">#4A52F5</color>
+    <color name="accent">#5AF0A2</color>
+    <color name="line">#00000000</color>
 </resources>

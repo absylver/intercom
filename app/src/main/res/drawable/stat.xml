@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Inset tile with a thin vertical gradient line on the right, like the sample's stat cards -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape><solid android:color="@color/inset" /><corners android:radius="12dp" /></shape>
+    </item>
+    <item android:gravity="end|fill_vertical" android:width="3dp" android:right="14dp" android:top="14dp" android:bottom="14dp">
+        <shape>
+            <gradient android:angle="270" android:startColor="@color/blue" android:endColor="@color/green" />
+            <corners android:radius="2dp" />
+        </shape>
+    </item>
+</layer-list>

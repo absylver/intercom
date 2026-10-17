@@ -4,40 +4,56 @@
         <item name="android:windowBackground">@color/bg</item>
         <item name="android:statusBarColor">@color/bg</item>
         <item name="android:navigationBarColor">@color/bg</item>
-        <item name="colorAccent">@color/brand</item>
+        <item name="colorAccent">@color/green</item>
         <item name="colorPrimary">@color/bg</item>
-        <item name="colorControlActivated">@color/brand</item>
+        <item name="colorControlActivated">@color/green</item>
+        <item name="android:fontFamily">@font/montserrat</item>
+        <item name="fontFamily">@font/montserrat</item>
+    </style>
+
+    <style name="Card">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/card</item>
+        <item name="android:elevation">10dp</item>
+        <item name="android:orientation">vertical</item>
     </style>
 
     <style name="Label">
         <item name="android:layout_width">wrap_content</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">14dp</item>
-        <item name="android:layout_marginBottom">6dp</item>
+        <item name="android:layout_marginTop">18dp</item>
+        <item name="android:layout_marginBottom">8dp</item>
         <item name="android:textColor">@color/muted</item>
-        <item name="android:textSize">11sp</item>
-        <item name="android:letterSpacing">0.15</item>
+        <item name="android:textSize">10sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:letterSpacing">0.18</item>
+        <item name="android:fontFamily">@font/montserrat</item>
     </style>
 
     <style name="Field">
         <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">6dp</item>
+        <item name="android:layout_height">52dp</item>
         <item name="android:background">@drawable/field</item>
-        <item name="android:padding">14dp</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingEnd">16dp</item>
         <item name="android:textColor">@color/ink</item>
-        <item name="android:textColorHint">#5C6A8A</item>
-        <item name="android:textSize">16sp</item>
+        <item name="android:textColorHint">@color/faint</item>
+        <item name="android:textSize">15sp</item>
         <item name="android:singleLine">true</item>
+        <item name="android:fontFamily">@font/montserrat</item>
     </style>
 
     <style name="BigButton">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">56dp</item>
         <item name="android:background">@drawable/btn</item>
+        <item name="android:stateListAnimator">@null</item>
         <item name="android:textColor">#FFFFFF</item>
+        <item name="android:textSize">12sp</item>
         <item name="android:textStyle">bold</item>
-        <item name="android:letterSpacing">0.08</item>
+        <item name="android:letterSpacing">0.14</item>
+        <item name="android:fontFamily">@font/montserrat</item>
     </style>
 
     <style name="GhostButton" parent="BigButton">
@@ -49,19 +65,24 @@
         <item name="android:layout_width">0dp</item>
         <item name="android:layout_height">wrap_content</item>
         <item name="android:layout_weight">1</item>
-        <item name="android:background">@drawable/field</item>
-        <item name="android:padding">12dp</item>
+        <item name="android:background">@drawable/stat</item>
+        <item name="android:paddingStart">16dp</item>
+        <item name="android:paddingTop">14dp</item>
+        <item name="android:paddingBottom">14dp</item>
+        <item name="android:paddingEnd">28dp</item>
         <item name="android:textColor">@color/ink</item>
-        <item name="android:textSize">15sp</item>
+        <item name="android:textSize">22sp</item>
         <item name="android:textStyle">bold</item>
+        <item name="android:fontFamily">@font/montserrat</item>
     </style>
 
     <style name="Note">
         <item name="android:layout_width">match_parent</item>
         <item name="android:layout_height">wrap_content</item>
-        <item name="android:layout_marginTop">14dp</item>
+        <item name="android:layout_marginTop">16dp</item>
         <item name="android:textColor">@color/muted</item>
-        <item name="android:textSize">13sp</item>
-        <item name="android:lineSpacingExtra">3dp</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:lineSpacingExtra">4dp</item>
+        <item name="android:fontFamily">@font/montserrat</item>
     </style>
 </resources>

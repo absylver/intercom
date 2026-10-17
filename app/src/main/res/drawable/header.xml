@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Card with a gradient strip on the left edge -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape><solid android:color="@color/panel" /><corners android:radius="14dp" /></shape>
+    </item>
+    <item android:gravity="start|fill_vertical" android:width="8dp">
+        <shape>
+            <gradient android:angle="270" android:startColor="@color/blue" android:endColor="@color/green" />
+            <corners android:topLeftRadius="14dp" android:bottomLeftRadius="14dp" />
+        </shape>
+    </item>
+</layer-list>
