@@ -36,6 +36,10 @@ import org.webrtc.PeerConnectionFactory
 import org.webrtc.RtpReceiver
 import org.webrtc.SdpObserver
 import org.webrtc.SessionDescription
+import org.webrtc.DefaultVideoDecoderFactory
+import org.webrtc.DefaultVideoEncoderFactory
+import org.webrtc.EglBase
+import org.webrtc.VideoSink
 import org.webrtc.audio.JavaAudioDeviceModule
 import java.util.concurrent.Executors
 
@@ -66,6 +70,8 @@ class IntercomService : Service() {
     private var factory: PeerConnectionFactory? = null
     private var adm: JavaAudioDeviceModule? = null
     private var micTrack: AudioTrack? = null
+    private var egl: EglBase? = null
+    private var camera: CameraStreamer? = null
     private val peers = HashMap<String, Peer>()
 
     private var wifiLock: WifiManager.WifiLock? = null
@@ -130,13 +136,17 @@ class IntercomService : Service() {
         socket?.off()
         socket?.disconnect()
         socket = null
+        camera?.dispose()
         exec {
             peers.values.forEach { runCatching { it.pc.dispose() } }
             peers.clear()
+            camera = null
             runCatching { micTrack?.dispose() }
             runCatching { factory?.dispose() }
             runCatching { adm?.release() }
             micTrack = null; factory = null; adm = null
+            runCatching { egl?.release() }
+            egl = null
         }
         rtc.shutdown()
         mediaSession?.release()
@@ -346,6 +356,35 @@ class IntercomService : Service() {
         updateNotification()
     }
 
+    /* ---------------- Camera (called from the screen) ---------------- */
+
+    val eglContext: EglBase.Context? get() = egl?.eglBaseContext
+
+    fun startCamera(settings: CameraSettings) {
+        // Tell Android this service now also uses the camera, so it keeps running with the screen off.
+        if (Build.VERSION.SDK_INT >= 30) {
+            runCatching {
+                startForeground(
+                    NOTIF_ID, buildNotification("Camera on · slot ${settings.slot}"),
+                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA,
+                )
+            }
+        }
+        camera?.start(settings)
+    }
+
+    fun updateCamera(settings: CameraSettings) { camera?.update(settings) }
+
+    fun stopCamera() {
+        camera?.stop()
+        if (Build.VERSION.SDK_INT >= 29) {
+            runCatching { startForeground(NOTIF_ID, buildNotification("Connected"), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE) }
+        }
+    }
+
+    fun addPreview(sink: VideoSink) { camera?.addPreview(sink) }
+    fun removePreview(sink: VideoSink) { camera?.removePreview(sink) }
+
     /* ---------------- WebRTC ---------------- */
 
     private fun setupWebRtc() {
@@ -356,7 +395,22 @@ class IntercomService : Service() {
             .setUseHardwareAcousticEchoCanceler(true)
             .setUseHardwareNoiseSuppressor(true)
             .createAudioDeviceModule()
-        factory = PeerConnectionFactory.builder().setAudioDeviceModule(adm).createPeerConnectionFactory()
+        val eglBase = EglBase.create()
+        egl = eglBase
+        factory = PeerConnectionFactory.builder()
+            .setAudioDeviceModule(adm)
+            // Hardware H.264 (and VP8) for the phone camera feed.
+            .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
+            .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
+            .createPeerConnectionFactory()
+        camera = CameraStreamer(
+            context = applicationContext,
+            factory = factory!!,
+            egl = eglBase,
+            exec = { block -> exec(block) },
+            emit = { event, data -> socket?.emit(event, data) },
+            operatorName = { name },
+        )
         val constraints = MediaConstraints().apply {
             mandatory.add(MediaConstraints.KeyValuePair("googEchoCancellation", "true"))
             mandatory.add(MediaConstraints.KeyValuePair("googNoiseSuppression", "true"))
@@ -473,6 +527,7 @@ class IntercomService : Service() {
         s.on(Socket.EVENT_CONNECT) {
             IntercomState.set { it.copy(connected = true, error = null) }
             s.emit("register", JSONObject().put("role", "operator").put("name", name))
+            camera?.announce() // the laptop forgets camera slots when the WiFi drops
             main.post { updateNotification() }
         }
         s.on(Socket.EVENT_DISCONNECT) {
@@ -508,6 +563,25 @@ class IntercomService : Service() {
         s.on("peer-left") { args ->
             val id = args.firstOrNull() as? String ?: return@on
             exec { dropPeer(id) }
+        }
+        // Camera feed signaling (separate from the intercom audio).
+        s.on("cam-pair") { args ->
+            val o = args.firstOrNull() as? JSONObject ?: return@on
+            camera?.onPair(o.optString("peer"))
+        }
+        s.on("cam-signal") { args ->
+            val o = args.firstOrNull() as? JSONObject ?: return@on
+            val data = o.optJSONObject("data") ?: return@on
+            camera?.onSignal(o.optString("from"), data)
+        }
+        s.on("cam-unpair") { camera?.onUnpair() }
+        s.on("camera-stopped") { args ->
+            val o = args.firstOrNull() as? JSONObject
+            camera?.onStoppedByServer(o?.optString("reason") ?: "")
+        }
+        s.on("camera-error") { args ->
+            val msg = args.firstOrNull() as? String ?: return@on
+            IntercomState.set { it.copy(cameraError = msg) }
         }
         s.connect()
     }

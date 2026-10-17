@@ -17,6 +17,9 @@ import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.Button
 import android.widget.EditText
+import android.widget.LinearLayout
+import org.webrtc.RendererCommon
+import org.webrtc.SurfaceViewRenderer
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -55,6 +58,21 @@ class MainActivity : AppCompatActivity() {
     private lateinit var voiceState: TextView
     private lateinit var battery: TextView
 
+    // Camera card
+    private lateinit var cameraPanel: View
+    private lateinit var camBadge: TextView
+    private lateinit var camStatus: TextView
+    private lateinit var camToggle: Button
+    private lateinit var camFlip: Button
+    private lateinit var previewBox: View
+    private lateinit var preview: SurfaceViewRenderer
+    private var previewReady = false
+    private var previewAttached = false
+    private var camSettings = CameraSettings()
+    private val slotChips = ArrayList<TextView>()
+    private val qualityChips = ArrayList<TextView>()
+    private val fpsChips = ArrayList<TextView>()
+
     private var discoveredHost: String? = null
     private var discoveredPort = 3000
     private var discovery: Job? = null
@@ -89,6 +107,7 @@ class MainActivity : AppCompatActivity() {
         }
         battery.setOnClickListener { askBatteryExemption() }
         setupPtt()
+        setupCamera()
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
@@ -105,7 +124,14 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStop() {
         discovery?.cancel()
+        detachPreview()
         super.onStop()
+    }
+
+    override fun onDestroy() {
+        detachPreview()
+        if (previewReady) runCatching { preview.release() }
+        super.onDestroy()
     }
 
     /* ---------------- Find the laptop automatically (UDP beacon from OronIntercom.exe) ---------------- */
@@ -193,6 +219,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 2) {
+            if (hasPermission(Manifest.permission.CAMERA)) startCamera()
+            else Toast.makeText(this, "Camera permission is needed to send video.", Toast.LENGTH_LONG).show()
+            return
+        }
         val p = pendingJoin ?: return
         pendingJoin = null
         if (hasPermission(Manifest.permission.RECORD_AUDIO)) {
@@ -241,6 +272,8 @@ class MainActivity : AppCompatActivity() {
     private fun render(s: UiState) {
         joinPanel.visibility = if (s.running) View.GONE else View.VISIBLE
         livePanel.visibility = if (s.running) View.VISIBLE else View.GONE
+        cameraPanel.visibility = if (s.running) View.VISIBLE else View.GONE
+        renderCamera(s)
         if (!s.running) {
             status.text = "Not connected"
             titleView.text = getString(R.string.app_name)
@@ -282,6 +315,139 @@ class MainActivity : AppCompatActivity() {
 
     private fun startDiscoveryIfVisible() {
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) startDiscovery()
+    }
+
+    /* ---------------- Camera card ---------------- */
+
+    private fun setupCamera() {
+        cameraPanel = findViewById(R.id.camera_panel)
+        camBadge = findViewById(R.id.cam_badge)
+        camStatus = findViewById(R.id.cam_status)
+        camToggle = findViewById(R.id.cam_toggle)
+        camFlip = findViewById(R.id.cam_flip)
+        previewBox = findViewById(R.id.preview_box)
+        preview = findViewById(R.id.preview)
+
+        camSettings = CameraSettings(
+            slot = prefs.getInt("camSlot", 1).coerceIn(1, 4),
+            quality = Quality.from(prefs.getString("camQuality", Quality.HD720.label)),
+            fps = if (prefs.getInt("camFps", 30) == 60) 60 else 30,
+            front = prefs.getBoolean("camFront", false),
+        )
+
+        buildChips(findViewById(R.id.slot_row), listOf("1", "2", "3", "4"), slotChips) { i ->
+            applySettings(camSettings.copy(slot = i + 1))
+        }
+        buildChips(findViewById(R.id.quality_row), Quality.entries.map { it.label }, qualityChips) { i ->
+            applySettings(camSettings.copy(quality = Quality.entries[i]))
+        }
+        buildChips(findViewById(R.id.fps_row), listOf("30 fps", "60 fps"), fpsChips) { i ->
+            applySettings(camSettings.copy(fps = if (i == 1) 60 else 30))
+        }
+        camFlip.setOnClickListener { applySettings(camSettings.copy(front = !camSettings.front)) }
+        camToggle.setOnClickListener {
+            if (IntercomState.ui.value.cameraOn) {
+                IntercomService.instance?.stopCamera()
+            } else if (hasPermission(Manifest.permission.CAMERA)) {
+                startCamera()
+            } else {
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), 2)
+            }
+        }
+        // 16:9 preview box sized from its width.
+        previewBox.addOnLayoutChangeListener { v, l, _, r, _, _, _, _, _ ->
+            val want = (r - l) * 9 / 16
+            if (want > 0 && v.layoutParams.height != want) v.post { v.layoutParams = v.layoutParams.apply { height = want } }
+        }
+        syncChips()
+    }
+
+    private fun buildChips(row: LinearLayout, labels: List<String>, out: MutableList<TextView>, onPick: (Int) -> Unit) {
+        labels.forEachIndexed { i, label ->
+            val chip = TextView(this).apply {
+                text = label
+                gravity = android.view.Gravity.CENTER
+                setBackgroundResource(R.drawable.chip)
+                setTextColor(ContextCompat.getColorStateList(this@MainActivity, R.color.chip_text))
+                textSize = 13f
+                typeface = androidx.core.content.res.ResourcesCompat.getFont(this@MainActivity, R.font.montserrat)
+                setTypeface(typeface, android.graphics.Typeface.BOLD)
+                setOnClickListener { onPick(i) }
+            }
+            val lp = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f)
+            if (i > 0) lp.marginStart = (8 * resources.displayMetrics.density).toInt()
+            row.addView(chip, lp)
+            out.add(chip)
+        }
+    }
+
+    private fun syncChips() {
+        slotChips.forEachIndexed { i, c -> c.isSelected = camSettings.slot == i + 1 }
+        qualityChips.forEachIndexed { i, c -> c.isSelected = camSettings.quality == Quality.entries[i] }
+        fpsChips.forEachIndexed { i, c -> c.isSelected = (camSettings.fps == 60) == (i == 1) }
+        camFlip.text = if (camSettings.front) "FRONT LENS" else "BACK LENS"
+    }
+
+    private fun applySettings(next: CameraSettings) {
+        camSettings = next
+        prefs.edit()
+            .putInt("camSlot", next.slot)
+            .putString("camQuality", next.quality.label)
+            .putInt("camFps", next.fps)
+            .putBoolean("camFront", next.front)
+            .apply()
+        syncChips()
+        if (IntercomState.ui.value.cameraOn) IntercomService.instance?.updateCamera(next)
+        if (previewReady) preview.setMirror(next.front)
+    }
+
+    private fun startCamera() {
+        IntercomService.instance?.startCamera(camSettings)
+    }
+
+    private fun attachPreview() {
+        val svc = IntercomService.instance ?: return
+        if (previewAttached) return
+        if (!previewReady) {
+            val ctx = svc.eglContext ?: return
+            preview.init(ctx, null)
+            preview.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT)
+            preview.setEnableHardwareScaler(true)
+            previewReady = true
+        }
+        preview.setMirror(camSettings.front)
+        svc.addPreview(preview)
+        previewAttached = true
+    }
+
+    private fun detachPreview() {
+        if (!previewAttached) return
+        IntercomService.instance?.removePreview(preview)
+        previewAttached = false
+    }
+
+    private fun renderCamera(s: UiState) {
+        val visible = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        previewBox.visibility = if (s.cameraOn) View.VISIBLE else View.GONE
+        if (s.cameraOn && visible) attachPreview() else if (!s.cameraOn) detachPreview()
+
+        camToggle.text = if (s.cameraOn) "STOP CAMERA" else "START CAMERA"
+        camToggle.setBackgroundResource(if (s.cameraOn) R.drawable.btn_ghost else R.drawable.btn)
+        camToggle.setTextColor(ContextCompat.getColor(this, if (s.cameraOn) R.color.muted else R.color.ink))
+        camBadge.text = when {
+            s.cameraLive -> "LIVE · CAM ${s.cameraSlot}"
+            s.cameraOn -> "CONNECTING"
+            else -> "OFF"
+        }
+        camBadge.setBackgroundResource(if (s.cameraLive) R.drawable.pill_live else R.drawable.pill)
+        camBadge.setTextColor(ContextCompat.getColor(this, if (s.cameraLive) R.color.onGrad else R.color.muted))
+        camStatus.setTextColor(ContextCompat.getColor(this, if (s.cameraError != null) R.color.warn else R.color.muted))
+        camStatus.text = when {
+            s.cameraError != null -> s.cameraError
+            s.cameraLive -> "Sending ${camSettings.quality.label} at ${camSettings.fps} fps to “Oron Camera ${s.cameraSlot}”. You can lock the phone."
+            s.cameraOn -> "Waiting for the laptop to accept camera slot ${s.cameraSlot}…"
+            else -> "Mount the phone, pick its slot, then start. In OBS or vMix choose the matching “Oron Camera”."
+        }
     }
 
     /* ---------------- Helpers ---------------- */

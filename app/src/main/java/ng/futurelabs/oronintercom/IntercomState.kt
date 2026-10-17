@@ -16,6 +16,12 @@ data class UiState(
     val latched: Boolean = false,
     val host: String = "",
     val error: String? = null,
+    // Camera (video to an "Oron Camera" slot on the laptop)
+    val cameraOn: Boolean = false,
+    val cameraLive: Boolean = false,
+    val cameraSlot: Int = 1,
+    val cameraFront: Boolean = false,
+    val cameraError: String? = null,
 )
 
 object IntercomState {

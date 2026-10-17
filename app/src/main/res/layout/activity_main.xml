@@ -214,5 +214,118 @@
                 android:layout_marginTop="18dp"
                 android:text="LEAVE INTERCOM" />
         </LinearLayout>
+
+        <!-- Camera card: this phone as a wireless camera for OBS / vMix -->
+        <LinearLayout
+            android:id="@+id/camera_panel"
+            style="@style/Card"
+            android:layout_marginTop="18dp"
+            android:padding="22dp"
+            android:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    style="@style/Label"
+                    android:layout_width="0dp"
+                    android:layout_marginTop="0dp"
+                    android:layout_marginBottom="0dp"
+                    android:layout_weight="1"
+                    android:text="CAMERA"
+                    android:textColor="@color/ink"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/cam_badge"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/pill"
+                    android:letterSpacing="0.18"
+                    android:paddingStart="10dp"
+                    android:paddingTop="5dp"
+                    android:paddingEnd="10dp"
+                    android:paddingBottom="5dp"
+                    android:text="OFF"
+                    android:textColor="@color/muted"
+                    android:textSize="9sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+
+            <FrameLayout
+                android:id="@+id/preview_box"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_marginTop="14dp"
+                android:background="@drawable/field"
+                android:visibility="gone">
+
+                <org.webrtc.SurfaceViewRenderer
+                    android:id="@+id/preview"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
+            </FrameLayout>
+
+            <TextView
+                style="@style/Label"
+                android:text="CAMERA SLOT ON THE LAPTOP" />
+
+            <LinearLayout
+                android:id="@+id/slot_row"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="horizontal" />
+
+            <TextView
+                style="@style/Label"
+                android:text="QUALITY" />
+
+            <LinearLayout
+                android:id="@+id/quality_row"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="horizontal" />
+
+            <TextView
+                style="@style/Label"
+                android:text="FRAME RATE" />
+
+            <LinearLayout
+                android:id="@+id/fps_row"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:orientation="horizontal" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/cam_flip"
+                    style="@style/GhostButton"
+                    android:layout_width="0dp"
+                    android:layout_marginEnd="8dp"
+                    android:layout_weight="1"
+                    android:text="BACK LENS" />
+
+                <Button
+                    android:id="@+id/cam_toggle"
+                    style="@style/BigButton"
+                    android:layout_width="0dp"
+                    android:layout_marginStart="8dp"
+                    android:layout_weight="1.4"
+                    android:text="START CAMERA" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/cam_status"
+                style="@style/Note"
+                android:text="Mount the phone, pick its slot, then start. In OBS or vMix choose the matching “Oron Camera”." />
+        </LinearLayout>
     </LinearLayout>
 </ScrollView>
