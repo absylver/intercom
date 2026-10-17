@@ -383,6 +383,14 @@ class IntercomService : Service() {
     }
 
     fun addPreview(sink: VideoSink) { camera?.addPreview(sink) }
+    /** Zoom, exposure, white balance, focus, light, stabilization from the controls panel. */
+    fun setCameraControls(c: CameraControls) { camera?.setControls(c) }
+
+    /** Tap-to-focus on the preview. */
+    fun focusAtView(x: Float, y: Float, viewW: Int, viewH: Int, fill: Boolean, mirrored: Boolean) {
+        camera?.focusAtView(x, y, viewW, viewH, fill, mirrored)
+    }
+
     /** Full-screen view reports the screen rotation so the picture stays upright either way round. */
     fun setStreamRotation(degrees: Int?) { camera?.setScreenRotation(degrees) }
     fun removePreview(sink: VideoSink) { camera?.removePreview(sink) }

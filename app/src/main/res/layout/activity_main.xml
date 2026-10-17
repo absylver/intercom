@@ -402,6 +402,14 @@
             android:layout_height="match_parent"
             android:layout_gravity="center" />
 
+        <!-- Shows where a tap-to-focus landed -->
+        <View
+            android:id="@+id/focus_ring"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:background="@drawable/focus_ring"
+            android:visibility="invisible" />
+
         <LinearLayout
             android:id="@+id/fs_top"
             android:layout_width="match_parent"
@@ -432,25 +440,39 @@
                 android:layout_weight="1" />
 
             <TextView
+                android:id="@+id/fs_hide"
+                style="@style/OverlayButton"
+                android:text="HIDE" />
+
+            <TextView
+                android:id="@+id/fs_flip"
+                style="@style/OverlayButton"
+                android:layout_marginStart="8dp"
+                android:text="FLIP" />
+
+            <TextView
                 android:id="@+id/fs_close"
+                style="@style/OverlayButton"
                 android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="@drawable/pill"
+                android:layout_marginStart="8dp"
                 android:contentDescription="Exit full screen"
-                android:gravity="center"
+                android:paddingStart="0dp"
+                android:paddingEnd="0dp"
                 android:text="✕"
-                android:textColor="@color/ink"
-                android:textSize="18sp" />
+                android:textSize="16sp" />
         </LinearLayout>
 
-        <Button
-            android:id="@+id/fs_flip"
-            style="@style/GhostButton"
-            android:layout_width="wrap_content"
-            android:layout_gravity="bottom|center_horizontal"
-            android:layout_marginBottom="20dp"
-            android:paddingStart="28dp"
-            android:paddingEnd="28dp"
-            android:text="FLIP LENS" />
+        <!-- Camera controls (built in code from what the phone supports) -->
+        <LinearLayout
+            android:id="@+id/fs_controls"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="@drawable/controls_bg"
+            android:orientation="vertical"
+            android:paddingStart="16dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="14dp" />
     </FrameLayout>
 </FrameLayout>

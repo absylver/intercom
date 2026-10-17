@@ -23,6 +23,8 @@ data class UiState(
     val cameraFront: Boolean = false,
     val cameraError: String? = null,
     val cameraLog: List<String> = emptyList(),
+    val cameraCaps: CameraCaps? = null,
+    val cameraControls: CameraControls = CameraControls(),
 )
 
 object IntercomState {

@@ -10,7 +10,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import org.webrtc.Camera2Enumerator
-import org.webrtc.CameraVideoCapturer
 import org.webrtc.CapturerObserver
 import org.webrtc.DataChannel
 import org.webrtc.EglBase
@@ -69,7 +68,9 @@ class CameraStreamer(
     var running: Boolean = false
         private set
 
-    private var capturer: CameraVideoCapturer? = null
+    private var capturer: OronCameraCapturer? = null
+    /** Operator's lens / exposure / focus settings (also mirrored in IntercomState for the screen). */
+    private var controls = CameraControls()
     private var textureHelper: SurfaceTextureHelper? = null
     private var source: VideoSource? = null
     private var track: VideoTrack? = null
@@ -195,8 +196,24 @@ class CameraStreamer(
             val cm = context.getSystemService(Context.CAMERA_SERVICE) as CameraManager
             cm.getCameraCharacteristics(name).get(CameraCharacteristics.SENSOR_ORIENTATION) ?: 90
         }.getOrDefault(if (frontFacing) 270 else 90)
-        val cap = enumerator.createCapturer(name, null)
-        cap.initialize(helper, context, RotationFixer(src.capturerObserver))
+        val cap = OronCameraCapturer(
+            cameraId = name,
+            front = frontFacing,
+            sensorOrientation = sensorOrientation,
+            rotationProvider = { frameRotation() },
+            onCaps = { c ->
+                IntercomState.set { it.copy(cameraCaps = c) }
+                note(
+                    "lens can do: zoom up to ${"%.1f".format(c.zoomMax)}x, exposure ${c.evMin}..${c.evMax}" +
+                        (if (c.manualSensor) ", manual ISO ${c.isoMin}-${c.isoMax}" else ", no manual ISO") +
+                        (if (c.hasFlash) ", light" else "") +
+                        (if (c.minFocusDistance > 0f) ", manual focus" else ""),
+                )
+            },
+            onProblem = { msg -> fail(msg) },
+        )
+        cap.setControls(controls)
+        cap.initialize(helper, context, src.capturerObserver)
         cap.startCapture(settings.quality.width, settings.quality.height, settings.fps)
         capturer = cap
         return true
@@ -218,22 +235,51 @@ class CameraStreamer(
         return if (frontFacing) (sensorOrientation + device) % 360 else (sensorOrientation + 360 - device) % 360
     }
 
-    private inner class RotationFixer(private val inner: CapturerObserver) : CapturerObserver {
-        override fun onCapturerStarted(success: Boolean) {
-            inner.onCapturerStarted(success)
-        }
+    /* ---------------- Operator controls ---------------- */
 
-        override fun onCapturerStopped() {
-            inner.onCapturerStopped()
+    fun setControls(c: CameraControls) {
+        exec {
+            val before = controls
+            controls = c
+            IntercomState.set { it.copy(cameraControls = c) }
+            capturer?.setControls(c)
+            if (before.focusManual && !c.focusManual) capturer?.clearFocusPoint()
         }
+    }
 
-        override fun onFrameCaptured(frame: VideoFrame) {
-            val rotation = frameRotation()
-            if (rotation == frame.rotation) {
-                inner.onFrameCaptured(frame)
-            } else {
-                inner.onFrameCaptured(VideoFrame(frame.buffer, rotation, frame.timestampNs))
+    /**
+     * Tap-to-focus from a tap on a preview of size [viewW]x[viewH].
+     * [fill] = preview crops to fill (full screen); [mirrored] = preview is mirrored (front camera).
+     */
+    fun focusAtView(x: Float, y: Float, viewW: Int, viewH: Int, fill: Boolean, mirrored: Boolean) {
+        exec {
+            val cap = capturer ?: return@exec
+            if (viewW <= 0 || viewH <= 0) return@exec
+            val r = frameRotation()
+            val bw = settings.quality.width.toFloat()
+            val bh = settings.quality.height.toFloat()
+            val fw = if (r == 90 || r == 270) bh else bw // picture as shown
+            val fh = if (r == 90 || r == 270) bw else bh
+            val scale = if (fill) maxOf(viewW / fw, viewH / fh) else minOf(viewW / fw, viewH / fh)
+            val ox = (viewW - fw * scale) / 2f
+            val oy = (viewH - fh * scale) / 2f
+            var u = ((x - ox) / (fw * scale)).coerceIn(0f, 1f)
+            val v = ((y - oy) / (fh * scale)).coerceIn(0f, 1f)
+            if (mirrored) u = 1f - u
+            // Undo the display rotation to get back to the camera buffer.
+            var bx: Float
+            val by: Float
+            when (r) {
+                90 -> { bx = v; by = 1f - u }
+                180 -> { bx = 1f - u; by = 1f - v }
+                270 -> { bx = 1f - v; by = u }
+                else -> { bx = u; by = v }
             }
+            if (frontFacing) bx = 1f - bx // the buffer is un-mirrored relative to the sensor
+            controls = controls.copy(focusManual = false)
+            IntercomState.set { it.copy(cameraControls = controls) }
+            cap.focusAt(bx, by)
+            note("focus on tapped spot")
         }
     }
 
@@ -272,6 +318,8 @@ class CameraStreamer(
             val old = settings
             settings = s
             if (s.front != old.front) {
+                controls = controls.copy(zoom = 1f, focusManual = false, torch = false)
+                IntercomState.set { it.copy(cameraControls = controls) }
                 closeCapturer()
                 openCapturer(s.front)
                 IntercomState.set { it.copy(cameraFront = s.front) }

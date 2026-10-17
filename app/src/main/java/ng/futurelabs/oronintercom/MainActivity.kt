@@ -86,6 +86,8 @@ class MainActivity : AppCompatActivity() {
     private var fullAttached = false
     private var isFullscreen = false
     private lateinit var camLog: TextView
+    private lateinit var controlsPanel: ControlsPanel
+    private var controlsHidden = false
     private var diagOpen = false
     private var camSettings = CameraSettings()
     private val slotChips = ArrayList<TextView>()
@@ -406,6 +408,16 @@ class MainActivity : AppCompatActivity() {
             cm.setPrimaryClip(android.content.ClipData.newPlainText("Oron camera log", IntercomState.ui.value.cameraLog.joinToString("\n")))
             Toast.makeText(this, "Camera log copied", Toast.LENGTH_SHORT).show()
         }
+        controlsPanel = ControlsPanel(this, findViewById(R.id.fs_controls)) { c ->
+            IntercomService.instance?.setCameraControls(c)
+        }
+        val hideBtn = findViewById<TextView>(R.id.fs_hide)
+        hideBtn.setOnClickListener {
+            controlsHidden = !controlsHidden
+            findViewById<View>(R.id.fs_controls).visibility = if (controlsHidden) View.INVISIBLE else View.VISIBLE
+            hideBtn.text = if (controlsHidden) "SHOW" else "HIDE"
+        }
+        setupPreviewGestures()
         camFull.setOnClickListener { enterFullscreen() }
         previewBox.setOnClickListener { enterFullscreen() }
         findViewById<View>(R.id.fs_close).setOnClickListener { exitFullscreen() }
@@ -429,9 +441,9 @@ class MainActivity : AppCompatActivity() {
             val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.systemBars())
             val pad = (16 * resources.displayMetrics.density).toInt()
             findViewById<View>(R.id.fs_top).setPadding(pad + i.left, pad + i.top, pad + i.right, pad)
-            val flip = findViewById<View>(R.id.fs_flip)
-            (flip.layoutParams as android.widget.FrameLayout.LayoutParams).bottomMargin = pad + 4 + i.bottom
-            flip.requestLayout()
+            val controlsBox = findViewById<View>(R.id.fs_controls)
+            val inner = (14 * resources.displayMetrics.density).toInt()
+            controlsBox.setPadding(pad + i.left, inner, pad + i.right, inner + i.bottom)
             insets
         }
 
@@ -553,6 +565,42 @@ class MainActivity : AppCompatActivity() {
         if (fullAttached) { svc?.removePreview(previewFull); fullAttached = false }
     }
 
+    /* ----- Full-screen gestures: pinch to zoom, tap to focus ----- */
+
+    @SuppressLint("ClickableViewAccessibility")
+    private fun setupPreviewGestures() {
+        val ring = findViewById<View>(R.id.focus_ring)
+        val scaler = android.view.ScaleGestureDetector(this, object : android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScale(d: android.view.ScaleGestureDetector): Boolean {
+                val st = IntercomState.ui.value
+                val max = st.cameraCaps?.zoomMax ?: return false
+                val z = (st.cameraControls.zoom * d.scaleFactor).coerceIn(1f, max)
+                IntercomService.instance?.setCameraControls(st.cameraControls.copy(zoom = z))
+                return true
+            }
+        })
+        val taps = android.view.GestureDetector(this, object : android.view.GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean = true
+            override fun onSingleTapUp(e: MotionEvent): Boolean {
+                if (IntercomState.ui.value.cameraCaps?.autoFocus != true) return false
+                IntercomService.instance?.focusAtView(
+                    e.x, e.y, previewFull.width, previewFull.height, fill = true, mirrored = camSettings.front,
+                )
+                ring.x = e.x - ring.width / 2f
+                ring.y = e.y - ring.height / 2f
+                ring.alpha = 1f
+                ring.visibility = View.VISIBLE
+                ring.animate().alpha(0f).setStartDelay(900).setDuration(400).withEndAction { ring.visibility = View.INVISIBLE }.start()
+                return true
+            }
+        })
+        previewFull.setOnTouchListener { _, ev ->
+            scaler.onTouchEvent(ev)
+            if (!scaler.isInProgress) taps.onTouchEvent(ev)
+            true
+        }
+    }
+
     /* ----- Full screen: front camera portrait, back camera landscape ----- */
 
     private fun enterFullscreen() {
@@ -640,6 +688,7 @@ class MainActivity : AppCompatActivity() {
         }
         camBadge.setBackgroundResource(if (s.cameraLive) R.drawable.pill_live else R.drawable.pill)
         camBadge.setTextColor(ContextCompat.getColor(this, if (s.cameraLive) R.color.onGrad else R.color.muted))
+        controlsPanel.update(s.cameraCaps, s.cameraControls, camSettings.fps)
         fsBadge.text = camBadge.text
         fsBadge.setBackgroundResource(if (s.cameraLive) R.drawable.pill_live else R.drawable.pill)
         fsBadge.setTextColor(ContextCompat.getColor(this, if (s.cameraLive) R.color.onGrad else R.color.muted))
@@ -650,7 +699,7 @@ class MainActivity : AppCompatActivity() {
                 "Sending ${camSettings.quality.label} at ${camSettings.fps} fps (landscape) to “Oron Camera ${s.cameraSlot}”. Tap the picture for full screen."
             s.cameraLive -> "Sending ${camSettings.quality.label} at ${camSettings.fps} fps to “Oron Camera ${s.cameraSlot}”. You can lock the phone."
             s.cameraOn -> "Waiting for the laptop to accept camera slot ${s.cameraSlot}…"
-            else -> "Mount the phone, pick its slot, then start. In OBS or vMix choose the matching “Oron Camera”."
+            else -> "Mount the phone, pick its slot, then start. In OBS or vMix choose the matching “Oron Camera”. Zoom, exposure, focus and light are in FULL SCREEN."
         }
     }
 
