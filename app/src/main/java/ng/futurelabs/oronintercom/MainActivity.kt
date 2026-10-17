@@ -4,7 +4,12 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
+import android.content.res.Configuration
+import android.view.Surface
+import android.view.WindowManager
+import androidx.activity.OnBackPressedCallback
 import android.graphics.Color
 import android.net.Uri
 import android.net.wifi.WifiManager
@@ -73,6 +78,13 @@ class MainActivity : AppCompatActivity() {
     private lateinit var preview: SurfaceViewRenderer
     private var previewReady = false
     private var previewAttached = false
+    private lateinit var camFull: Button
+    private lateinit var fullscreen: View
+    private lateinit var previewFull: SurfaceViewRenderer
+    private lateinit var fsBadge: TextView
+    private var fullReady = false
+    private var fullAttached = false
+    private var isFullscreen = false
     private var camSettings = CameraSettings()
     private val slotChips = ArrayList<TextView>()
     private val qualityChips = ArrayList<TextView>()
@@ -137,6 +149,7 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         detachPreview()
         if (previewReady) runCatching { preview.release() }
+        if (fullReady) runCatching { previewFull.release() }
         super.onDestroy()
     }
 
@@ -373,6 +386,38 @@ class MainActivity : AppCompatActivity() {
         camFlip = findViewById(R.id.cam_flip)
         previewBox = findViewById(R.id.preview_box)
         preview = findViewById(R.id.preview)
+        camFull = findViewById(R.id.cam_full)
+        fullscreen = findViewById(R.id.fullscreen)
+        previewFull = findViewById(R.id.preview_full)
+        fsBadge = findViewById(R.id.fs_badge)
+        camFull.setOnClickListener { enterFullscreen() }
+        previewBox.setOnClickListener { enterFullscreen() }
+        findViewById<View>(R.id.fs_close).setOnClickListener { exitFullscreen() }
+        findViewById<View>(R.id.fs_flip).setOnClickListener {
+            applySettings(camSettings.copy(front = !camSettings.front))
+            if (isFullscreen) applyFullscreenOrientation()
+        }
+        onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                if (isFullscreen) {
+                    exitFullscreen()
+                } else {
+                    isEnabled = false
+                    onBackPressedDispatcher.onBackPressed()
+                    isEnabled = true
+                }
+            }
+        })
+        // Keep the full-screen controls clear of notches and rounded corners.
+        ViewCompat.setOnApplyWindowInsetsListener(fullscreen) { v, insets ->
+            val i = insets.getInsets(WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.systemBars())
+            val pad = (16 * resources.displayMetrics.density).toInt()
+            findViewById<View>(R.id.fs_top).setPadding(pad + i.left, pad + i.top, pad + i.right, pad)
+            val flip = findViewById<View>(R.id.fs_flip)
+            (flip.layoutParams as android.widget.FrameLayout.LayoutParams).bottomMargin = pad + 4 + i.bottom
+            flip.requestLayout()
+            insets
+        }
 
         camSettings = CameraSettings(
             slot = prefs.getInt("camSlot", 1).coerceIn(1, 4),
@@ -445,37 +490,128 @@ class MainActivity : AppCompatActivity() {
         syncChips()
         if (IntercomState.ui.value.cameraOn) IntercomService.instance?.updateCamera(next)
         if (previewReady) preview.setMirror(next.front)
+        if (fullReady) previewFull.setMirror(next.front)
     }
 
     private fun startCamera() {
         IntercomService.instance?.startCamera(camSettings)
     }
 
-    private fun attachPreview() {
-        val svc = IntercomService.instance ?: return
-        if (previewAttached) return
-        if (!previewReady) {
-            val ctx = svc.eglContext ?: return
-            preview.init(ctx, null)
-            preview.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT)
-            preview.setEnableHardwareScaler(true)
-            previewReady = true
+    /** Puts the camera picture in the small card or the full-screen view (never both). */
+    private fun syncPreview() {
+        val svc = IntercomService.instance
+        val started = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        val on = IntercomState.ui.value.cameraOn && started && svc != null
+        val wantSmall = on && !isFullscreen
+        val wantFull = on && isFullscreen
+        val ctx = svc?.eglContext
+        if (previewAttached && !wantSmall) { svc?.removePreview(preview); previewAttached = false }
+        if (fullAttached && !wantFull) { svc?.removePreview(previewFull); fullAttached = false }
+        if (wantSmall && !previewAttached && ctx != null) {
+            if (!previewReady) {
+                preview.init(ctx, null)
+                preview.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FIT)
+                preview.setEnableHardwareScaler(true)
+                previewReady = true
+            }
+            preview.setMirror(camSettings.front)
+            svc?.addPreview(preview)
+            previewAttached = true
         }
-        preview.setMirror(camSettings.front)
-        svc.addPreview(preview)
-        previewAttached = true
+        if (wantFull && !fullAttached && ctx != null) {
+            if (!fullReady) {
+                previewFull.init(ctx, null)
+                previewFull.setScalingType(RendererCommon.ScalingType.SCALE_ASPECT_FILL)
+                previewFull.setEnableHardwareScaler(true)
+                fullReady = true
+            }
+            previewFull.setMirror(camSettings.front)
+            svc?.addPreview(previewFull)
+            fullAttached = true
+        }
     }
 
     private fun detachPreview() {
-        if (!previewAttached) return
-        IntercomService.instance?.removePreview(preview)
-        previewAttached = false
+        val svc = IntercomService.instance
+        if (previewAttached) { svc?.removePreview(preview); previewAttached = false }
+        if (fullAttached) { svc?.removePreview(previewFull); fullAttached = false }
+    }
+
+    /* ----- Full screen: front camera portrait, back camera landscape ----- */
+
+    private fun enterFullscreen() {
+        if (!IntercomState.ui.value.cameraOn || isFullscreen) return
+        isFullscreen = true
+        findViewById<View>(R.id.root).visibility = View.INVISIBLE
+        fullscreen.visibility = View.VISIBLE
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            hide(WindowInsetsCompat.Type.systemBars())
+        }
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        applyFullscreenOrientation()
+        syncPreview()
+        ViewCompat.requestApplyInsets(fullscreen)
+    }
+
+    private fun exitFullscreen() {
+        if (!isFullscreen) return
+        isFullscreen = false
+        fullscreen.visibility = View.GONE
+        findViewById<View>(R.id.root).visibility = View.VISIBLE
+        WindowInsetsControllerCompat(window, window.decorView).show(WindowInsetsCompat.Type.systemBars())
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        // The back camera keeps the last landscape direction; the front camera goes back to portrait.
+        if (camSettings.front) IntercomService.instance?.setStreamRotation(null)
+        syncPreview()
+    }
+
+    private fun applyFullscreenOrientation() {
+        requestedOrientation = if (camSettings.front) {
+            ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        } else {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE // either way round; the picture stays upright
+        }
+        if (fullReady) previewFull.setMirror(camSettings.front)
+        updateStreamRotation()
+    }
+
+    private fun updateStreamRotation() {
+        if (!isFullscreen) return
+        if (camSettings.front) {
+            IntercomService.instance?.setStreamRotation(0)
+        } else {
+            val deg = displayRotation()
+            // Only trust real landscape readings (the rotation may still be in progress).
+            if (deg == 90 || deg == 270) IntercomService.instance?.setStreamRotation(deg)
+        }
+    }
+
+    private fun displayRotation(): Int {
+        @Suppress("DEPRECATION")
+        val r = if (Build.VERSION.SDK_INT >= 30) display?.rotation ?: Surface.ROTATION_0 else windowManager.defaultDisplay.rotation
+        return when (r) {
+            Surface.ROTATION_90 -> 90
+            Surface.ROTATION_180 -> 180
+            Surface.ROTATION_270 -> 270
+            else -> 0
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        updateStreamRotation()
+        if (!isFullscreen) applyContentPadding()
     }
 
     private fun renderCamera(s: UiState) {
         val visible = lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
         previewBox.visibility = if (s.cameraOn) View.VISIBLE else View.GONE
-        if (s.cameraOn && visible) attachPreview() else if (!s.cameraOn) detachPreview()
+        if (!s.cameraOn && isFullscreen) exitFullscreen()
+        camFull.isEnabled = s.cameraOn
+        camFull.alpha = if (s.cameraOn) 1f else 0.45f
+        if (visible) syncPreview()
 
         camToggle.text = if (s.cameraOn) "STOP CAMERA" else "START CAMERA"
         camToggle.setBackgroundResource(if (s.cameraOn) R.drawable.btn_ghost else R.drawable.btn)
@@ -487,9 +623,14 @@ class MainActivity : AppCompatActivity() {
         }
         camBadge.setBackgroundResource(if (s.cameraLive) R.drawable.pill_live else R.drawable.pill)
         camBadge.setTextColor(ContextCompat.getColor(this, if (s.cameraLive) R.color.onGrad else R.color.muted))
+        fsBadge.text = camBadge.text
+        fsBadge.setBackgroundResource(if (s.cameraLive) R.drawable.pill_live else R.drawable.pill)
+        fsBadge.setTextColor(ContextCompat.getColor(this, if (s.cameraLive) R.color.onGrad else R.color.muted))
         camStatus.setTextColor(ContextCompat.getColor(this, if (s.cameraError != null) R.color.warn else R.color.muted))
         camStatus.text = when {
             s.cameraError != null -> s.cameraError
+            s.cameraLive && !camSettings.front ->
+                "Sending ${camSettings.quality.label} at ${camSettings.fps} fps (landscape) to “Oron Camera ${s.cameraSlot}”. Tap the picture for full screen."
             s.cameraLive -> "Sending ${camSettings.quality.label} at ${camSettings.fps} fps to “Oron Camera ${s.cameraSlot}”. You can lock the phone."
             s.cameraOn -> "Waiting for the laptop to accept camera slot ${s.cameraSlot}…"
             else -> "Mount the phone, pick its slot, then start. In OBS or vMix choose the matching “Oron Camera”."

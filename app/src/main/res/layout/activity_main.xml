@@ -1,5 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/frame"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg">
+
+<ScrollView
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -321,13 +327,20 @@
                     android:text="BACK LENS" />
 
                 <Button
-                    android:id="@+id/cam_toggle"
-                    style="@style/BigButton"
+                    android:id="@+id/cam_full"
+                    style="@style/GhostButton"
                     android:layout_width="0dp"
                     android:layout_marginStart="@dimen/half_gap"
-                    android:layout_weight="1.4"
-                    android:text="START CAMERA" />
+                    android:layout_weight="1"
+                    android:enabled="false"
+                    android:text="FULL SCREEN" />
             </LinearLayout>
+
+            <Button
+                android:id="@+id/cam_toggle"
+                style="@style/BigButton"
+                android:layout_marginTop="12dp"
+                android:text="START CAMERA" />
 
             <TextView
                 android:id="@+id/cam_status"
@@ -336,3 +349,72 @@
         </LinearLayout>
     </LinearLayout>
 </ScrollView>
+
+    <!-- Full-screen camera: front = portrait, back = landscape -->
+    <FrameLayout
+        android:id="@+id/fullscreen"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#000000"
+        android:clickable="true"
+        android:focusable="true"
+        android:visibility="gone">
+
+        <org.webrtc.SurfaceViewRenderer
+            android:id="@+id/preview_full"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_gravity="center" />
+
+        <LinearLayout
+            android:id="@+id/fs_top"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="top"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="16dp">
+
+            <TextView
+                android:id="@+id/fs_badge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/pill"
+                android:letterSpacing="0.18"
+                android:paddingStart="12dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="12dp"
+                android:paddingBottom="7dp"
+                android:text="CONNECTING"
+                android:textColor="@color/muted"
+                android:textSize="10sp"
+                android:textStyle="bold" />
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" />
+
+            <TextView
+                android:id="@+id/fs_close"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/pill"
+                android:contentDescription="Exit full screen"
+                android:gravity="center"
+                android:text="✕"
+                android:textColor="@color/ink"
+                android:textSize="18sp" />
+        </LinearLayout>
+
+        <Button
+            android:id="@+id/fs_flip"
+            style="@style/GhostButton"
+            android:layout_width="wrap_content"
+            android:layout_gravity="bottom|center_horizontal"
+            android:layout_marginBottom="20dp"
+            android:paddingStart="28dp"
+            android:paddingEnd="28dp"
+            android:text="FLIP LENS" />
+    </FrameLayout>
+</FrameLayout>

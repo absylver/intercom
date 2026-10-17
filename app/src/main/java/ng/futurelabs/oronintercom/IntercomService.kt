@@ -383,6 +383,8 @@ class IntercomService : Service() {
     }
 
     fun addPreview(sink: VideoSink) { camera?.addPreview(sink) }
+    /** Full-screen view reports the screen rotation so the picture stays upright either way round. */
+    fun setStreamRotation(degrees: Int?) { camera?.setScreenRotation(degrees) }
     fun removePreview(sink: VideoSink) { camera?.removePreview(sink) }
 
     /* ---------------- WebRTC ---------------- */
@@ -567,7 +569,7 @@ class IntercomService : Service() {
         // Camera feed signaling (separate from the intercom audio).
         s.on("cam-pair") { args ->
             val o = args.firstOrNull() as? JSONObject ?: return@on
-            camera?.onPair(o.optString("peer"))
+            camera?.onPair(o.optString("peer"), o.optInt("gen", 0))
         }
         s.on("cam-signal") { args ->
             val o = args.firstOrNull() as? JSONObject ?: return@on
