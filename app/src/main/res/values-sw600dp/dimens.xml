@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="screen_pad">32dp</dimen>
+    <dimen name="gap">20dp</dimen>
+    <dimen name="card_pad">28dp</dimen>
+    <dimen name="half_gap">8dp</dimen>
+    <dimen name="ptt">250dp</dimen>
+    <dimen name="ptt_box">320dp</dimen>
+</resources>

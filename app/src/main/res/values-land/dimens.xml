@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="ptt">170dp</dimen>
+    <dimen name="ptt_box">210dp</dimen>
+</resources>

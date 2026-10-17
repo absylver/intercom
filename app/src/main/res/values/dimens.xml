@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One spacing scale for the whole app; tablets and landscape override below. -->
+<resources>
+    <dimen name="screen_pad">16dp</dimen>     <!-- page edge -->
+    <dimen name="gap">16dp</dimen>            <!-- between cards -->
+    <dimen name="card_pad">20dp</dimen>       <!-- inside cards -->
+    <dimen name="half_gap">6dp</dimen>        <!-- between side-by-side buttons/tiles -->
+    <dimen name="ptt">220dp</dimen>
+    <dimen name="ptt_box">280dp</dimen>
+    <dimen name="content_max">560dp</dimen>   <!-- content width cap on big screens -->
+</resources>

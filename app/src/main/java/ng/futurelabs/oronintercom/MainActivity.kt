@@ -25,6 +25,11 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -81,6 +86,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         window.statusBarColor = Color.parseColor("#2D2B50")
+        setupEdgeToEdge()
 
         status = findViewById(R.id.status)
         mark = findViewById(R.id.mark)
@@ -315,6 +321,46 @@ class MainActivity : AppCompatActivity() {
 
     private fun startDiscoveryIfVisible() {
         if (lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) startDiscovery()
+    }
+
+    /* ---------------- Layout: system bars, notch, keyboard, tablets ---------------- */
+
+    private var barInsets: Insets = Insets.NONE
+
+    private fun setupEdgeToEdge() {
+        // Draw behind the system bars (required on Android 15+) and pad the content ourselves,
+        // so the header never sits under the status bar, notch or navigation bar.
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        WindowInsetsControllerCompat(window, window.decorView).apply {
+            isAppearanceLightStatusBars = false
+            isAppearanceLightNavigationBars = false
+        }
+        val root = findViewById<View>(R.id.root)
+        ViewCompat.setOnApplyWindowInsetsListener(root) { _, insets ->
+            barInsets = insets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout() or WindowInsetsCompat.Type.ime()
+            )
+            applyContentPadding()
+            insets
+        }
+        root.addOnLayoutChangeListener { _, l, _, r, _, oldL, _, oldR, _ -> if (r - l != oldR - oldL) applyContentPadding() }
+    }
+
+    /** Even page margins; on tablets the content is centred at a comfortable width. */
+    private fun applyContentPadding() {
+        val root = findViewById<View>(R.id.root)
+        val content = findViewById<View>(R.id.content)
+        val pad = resources.getDimensionPixelSize(R.dimen.screen_pad)
+        val maxW = resources.getDimensionPixelSize(R.dimen.content_max)
+        val usable = root.width - barInsets.left - barInsets.right
+        val side = if (usable > maxW + 2 * pad) (usable - maxW) / 2 else pad
+        val l = side + barInsets.left
+        val t = pad + barInsets.top
+        val r = side + barInsets.right
+        val b = pad + barInsets.bottom
+        if (content.paddingLeft != l || content.paddingTop != t || content.paddingRight != r || content.paddingBottom != b) {
+            content.setPadding(l, t, r, b)
+        }
     }
 
     /* ---------------- Camera card ---------------- */

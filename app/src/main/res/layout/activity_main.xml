@@ -1,16 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/bg"
+    android:clipToPadding="false"
     android:fillViewport="true">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:id="@+id/content"
         android:clipToPadding="false"
-        android:orientation="vertical"
-        android:padding="18dp">
+        android:clipChildren="false"
+        android:orientation="vertical">
 
         <!-- Header: gradient strip, round gradient badge, name + status -->
         <LinearLayout
@@ -45,6 +48,8 @@
 
                 <TextView
                     android:id="@+id/title"
+                    android:ellipsize="end"
+                    android:maxLines="2"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/app_name"
@@ -54,6 +59,8 @@
 
                 <TextView
                     android:id="@+id/status"
+                    android:ellipsize="end"
+                    android:maxLines="2"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="2dp"
@@ -68,8 +75,8 @@
         <LinearLayout
             android:id="@+id/join_panel"
             style="@style/Card"
-            android:layout_marginTop="22dp"
-            android:padding="22dp">
+            android:layout_marginTop="@dimen/gap"
+            android:padding="@dimen/card_pad">
 
             <TextView
                 style="@style/Label"
@@ -122,7 +129,7 @@
             <Button
                 android:id="@+id/join"
                 style="@style/BigButton"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="20dp"
                 android:text="JOIN INTERCOM" />
 
             <TextView
@@ -134,10 +141,10 @@
         <LinearLayout
             android:id="@+id/live_panel"
             style="@style/Card"
-            android:layout_marginTop="22dp"
+            android:layout_marginTop="@dimen/gap"
             android:clipChildren="false"
             android:gravity="center_horizontal"
-            android:padding="22dp"
+            android:padding="@dimen/card_pad"
             android:visibility="gone">
 
             <TextView
@@ -154,8 +161,8 @@
                 android:textStyle="bold" />
 
             <FrameLayout
-                android:layout_width="300dp"
-                android:layout_height="300dp"
+                android:layout_width="@dimen/ptt_box"
+                android:layout_height="@dimen/ptt_box"
                 android:layout_marginTop="8dp"
                 android:clipChildren="false">
 
@@ -166,8 +173,8 @@
 
                 <Button
                     android:id="@+id/ptt"
-                    android:layout_width="220dp"
-                    android:layout_height="220dp"
+                    android:layout_width="@dimen/ptt"
+                    android:layout_height="@dimen/ptt"
                     android:layout_gravity="center"
                     android:background="@drawable/ptt"
                     android:elevation="16dp"
@@ -187,13 +194,13 @@
                 <TextView
                     android:id="@+id/dir_state"
                     style="@style/Stat"
-                    android:layout_marginEnd="6dp"
+                    android:layout_marginEnd="@dimen/half_gap"
                     android:text="Offline" />
 
                 <TextView
                     android:id="@+id/voice_state"
                     style="@style/Stat"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="@dimen/half_gap"
                     android:text="—" />
             </LinearLayout>
 
@@ -211,7 +218,7 @@
             <Button
                 android:id="@+id/leave"
                 style="@style/GhostButton"
-                android:layout_marginTop="18dp"
+                android:layout_marginTop="20dp"
                 android:text="LEAVE INTERCOM" />
         </LinearLayout>
 
@@ -219,8 +226,8 @@
         <LinearLayout
             android:id="@+id/camera_panel"
             style="@style/Card"
-            android:layout_marginTop="18dp"
-            android:padding="22dp"
+            android:layout_marginTop="@dimen/gap"
+            android:padding="@dimen/card_pad"
             android:visibility="gone">
 
             <LinearLayout
@@ -309,7 +316,7 @@
                     android:id="@+id/cam_flip"
                     style="@style/GhostButton"
                     android:layout_width="0dp"
-                    android:layout_marginEnd="8dp"
+                    android:layout_marginEnd="@dimen/half_gap"
                     android:layout_weight="1"
                     android:text="BACK LENS" />
 
@@ -317,7 +324,7 @@
                     android:id="@+id/cam_toggle"
                     style="@style/BigButton"
                     android:layout_width="0dp"
-                    android:layout_marginStart="8dp"
+                    android:layout_marginStart="@dimen/half_gap"
                     android:layout_weight="1.4"
                     android:text="START CAMERA" />
             </LinearLayout>

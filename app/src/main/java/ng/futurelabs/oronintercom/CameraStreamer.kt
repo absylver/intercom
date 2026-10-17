@@ -72,7 +72,7 @@ class CameraStreamer(
 
     /* ---------------- Capture ---------------- */
 
-    fun start(s: CameraSettings) = exec {
+    fun start(s: CameraSettings) { exec {
         if (running) stopInternal(sendStop = false)
         settings = s
         val enumerator = Camera2Enumerator(context)
@@ -97,10 +97,10 @@ class CameraStreamer(
             it.copy(cameraOn = true, cameraLive = false, cameraSlot = s.slot, cameraError = null, cameraFront = s.front)
         }
         announce()
-    }
+    } }
 
     /** Tells the laptop which slot this phone feeds. Also used after a WiFi reconnect. */
-    fun announce() = exec {
+    fun announce() { exec {
         if (!running) return@exec
         emit(
             "camera-start",
@@ -111,10 +111,10 @@ class CameraStreamer(
                 .put("height", settings.quality.height)
                 .put("fps", settings.fps),
         )
-    }
+    } }
 
     /** Applies new settings while running (slot change re-pairs; the rest happens live). */
-    fun update(s: CameraSettings) = exec {
+    fun update(s: CameraSettings) { exec {
         if (!running) { settings = s; return@exec }
         val old = settings
         settings = s
@@ -133,9 +133,9 @@ class CameraStreamer(
         } else if (s.quality != old.quality || s.fps != old.fps) {
             announce() // refresh the details shown on the director's console
         }
-    }
+    } }
 
-    fun stop() = exec { stopInternal(sendStop = true) }
+    fun stop() { exec { stopInternal(sendStop = true) } }
 
     private fun stopInternal(sendStop: Boolean) {
         if (sendStop && running) emit("camera-stop", JSONObject())
@@ -153,19 +153,19 @@ class CameraStreamer(
 
     /* ---------------- Preview on the phone ---------------- */
 
-    fun addPreview(sink: VideoSink) = exec {
+    fun addPreview(sink: VideoSink) { exec {
         previewSinks.add(sink)
         track?.addSink(sink)
-    }
+    } }
 
-    fun removePreview(sink: VideoSink) = exec {
+    fun removePreview(sink: VideoSink) { exec {
         previewSinks.remove(sink)
         runCatching { track?.removeSink(sink) }
-    }
+    } }
 
     /* ---------------- Connection to the laptop's receiver ---------------- */
 
-    fun onPair(peer: String) = exec {
+    fun onPair(peer: String) { exec {
         if (!running) return@exec
         closePeer()
         receiverId = peer
@@ -197,7 +197,7 @@ class CameraStreamer(
         sender = track?.let { conn.addTrack(it, listOf("oron-camera")) }
         applyEncoding()
         conn.createOffer(object : Sdp() {
-            override fun onCreateSuccess(desc: SessionDescription) = exec {
+            override fun onCreateSuccess(desc: SessionDescription) { exec {
                 val tuned = SessionDescription(desc.type, preferH264(desc.description))
                 conn.setLocalDescription(object : Sdp() {
                     override fun onSetSuccess() {
@@ -205,43 +205,43 @@ class CameraStreamer(
                         emit("cam-signal", JSONObject().put("to", peer).put("data", JSONObject().put("sdp", sdp)))
                     }
                 }, tuned)
-            }
+            } }
         }, MediaConstraints())
-    }
+    } }
 
-    fun onSignal(from: String, data: JSONObject) = exec {
+    fun onSignal(from: String, data: JSONObject) { exec {
         val conn = pc ?: return@exec
         if (from != receiverId) return@exec
         val sdp = data.optJSONObject("sdp")
         val cand = data.optJSONObject("candidate")
         if (sdp != null && sdp.optString("type") == "answer") {
             conn.setRemoteDescription(object : Sdp() {
-                override fun onSetSuccess() = exec {
+                override fun onSetSuccess() { exec {
                     remoteSet = true
                     pendingIce.forEach { conn.addIceCandidate(it) }
                     pendingIce.clear()
-                }
+                } }
             }, SessionDescription(SessionDescription.Type.ANSWER, sdp.optString("sdp")))
         } else if (cand != null) {
             val ice = IceCandidate(cand.optString("sdpMid", "0"), cand.optInt("sdpMLineIndex", 0), cand.optString("candidate"))
             if (remoteSet) conn.addIceCandidate(ice) else pendingIce.add(ice)
         }
-    }
+    } }
 
-    fun onUnpair() = exec {
+    fun onUnpair() { exec {
         closePeer()
         IntercomState.set { it.copy(cameraLive = false) }
-    }
+    } }
 
     /** Another phone took this slot, or the laptop rejected it. */
-    fun onStoppedByServer(reason: String) = exec {
+    fun onStoppedByServer(reason: String) { exec {
         stopInternal(sendStop = false)
         IntercomState.set {
             it.copy(cameraError = if (reason == "replaced") "Another phone took camera slot ${settings.slot}" else null)
         }
-    }
+    } }
 
-    fun dispose() = exec { stopInternal(sendStop = false) }
+    fun dispose() { exec { stopInternal(sendStop = false) } }
 
     private fun closePeer() {
         runCatching { pc?.dispose() }
