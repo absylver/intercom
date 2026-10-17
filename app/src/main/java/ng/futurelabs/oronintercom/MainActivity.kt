@@ -85,6 +85,8 @@ class MainActivity : AppCompatActivity() {
     private var fullReady = false
     private var fullAttached = false
     private var isFullscreen = false
+    private lateinit var camLog: TextView
+    private var diagOpen = false
     private var camSettings = CameraSettings()
     private val slotChips = ArrayList<TextView>()
     private val qualityChips = ArrayList<TextView>()
@@ -390,6 +392,20 @@ class MainActivity : AppCompatActivity() {
         fullscreen = findViewById(R.id.fullscreen)
         previewFull = findViewById(R.id.preview_full)
         fsBadge = findViewById(R.id.fs_badge)
+        camLog = findViewById(R.id.cam_log)
+        val diagToggle = findViewById<TextView>(R.id.cam_diag_toggle)
+        diagToggle.setOnClickListener {
+            diagOpen = !diagOpen
+            findViewById<View>(R.id.cam_diag).visibility = if (diagOpen) View.VISIBLE else View.GONE
+            diagToggle.text = if (diagOpen) "HIDE DIAGNOSTICS ▴" else "SHOW DIAGNOSTICS ▾"
+            val lines = IntercomState.ui.value.cameraLog
+            camLog.text = if (lines.isEmpty()) "No camera activity yet." else lines.takeLast(40).joinToString("\n")
+        }
+        findViewById<Button>(R.id.cam_log_copy).setOnClickListener {
+            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("Oron camera log", IntercomState.ui.value.cameraLog.joinToString("\n")))
+            Toast.makeText(this, "Camera log copied", Toast.LENGTH_SHORT).show()
+        }
         camFull.setOnClickListener { enterFullscreen() }
         previewBox.setOnClickListener { enterFullscreen() }
         findViewById<View>(R.id.fs_close).setOnClickListener { exitFullscreen() }
@@ -614,6 +630,7 @@ class MainActivity : AppCompatActivity() {
         if (visible) syncPreview()
 
         camToggle.text = if (s.cameraOn) "STOP CAMERA" else "START CAMERA"
+        if (diagOpen) camLog.text = if (s.cameraLog.isEmpty()) "No camera activity yet." else s.cameraLog.takeLast(40).joinToString("\n")
         camToggle.setBackgroundResource(if (s.cameraOn) R.drawable.btn_ghost else R.drawable.btn)
         camToggle.setTextColor(ContextCompat.getColor(this, if (s.cameraOn) R.color.muted else R.color.ink))
         camBadge.text = when {

@@ -6,6 +6,9 @@ import android.hardware.camera2.CameraManager
 import android.os.Handler
 import android.os.Looper
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import org.webrtc.Camera2Enumerator
 import org.webrtc.CameraVideoCapturer
 import org.webrtc.CapturerObserver
@@ -89,6 +92,7 @@ class CameraStreamer(
     private val pairWatchdog = Runnable {
         exec {
             if (running && receiverId == null) {
+                note("WARNING the laptop has not paired this camera after 8 s")
                 IntercomState.set {
                     it.copy(
                         cameraError = "The laptop didn't answer. Make sure it is running the Oron Intercom " +
@@ -96,6 +100,51 @@ class CameraStreamer(
                     )
                 }
             }
+        }
+    }
+
+    /* ---------------- Diagnostics ---------------- */
+
+    private val clock = SimpleDateFormat("HH:mm:ss", Locale.US)
+
+    /** Adds a line to the phone's camera log and sends it to the laptop's log. */
+    fun note(msg: String) {
+        val line = "${clock.format(Date())} $msg"
+        IntercomState.set { it.copy(cameraLog = (it.cameraLog + line).takeLast(80)) }
+        runCatching { emit("cam-log", JSONObject().put("msg", msg)) }
+    }
+
+    private fun fail(msg: String) {
+        note("ERROR $msg")
+        IntercomState.set { it.copy(cameraError = "Video setup error: $msg") }
+    }
+
+    private fun candText(sdp: String): String {
+        val p = sdp.split(" ")
+        return "${p.getOrNull(7) ?: "?"} ${p.getOrNull(2) ?: ""} ${p.getOrNull(4) ?: "?"}:${p.getOrNull(5) ?: "?"}"
+    }
+
+    private val statsTick = object : Runnable {
+        override fun run() {
+            exec {
+                val conn = pc
+                if (running && conn != null) {
+                    conn.getStats { report ->
+                        val out = report.statsMap.values.firstOrNull { it.type == "outbound-rtp" && it.members["kind"] == "video" }
+                        if (out != null) {
+                            val m = out.members
+                            note(
+                                "stats: ${conn.connectionState()}, sent ${((m["bytesSent"] as? Number)?.toLong() ?: 0) / 1024} KB, " +
+                                    "${m["frameWidth"] ?: 0}x${m["frameHeight"] ?: 0}, ${m["framesPerSecond"] ?: 0} fps, " +
+                                    "encoder ${m["encoderImplementation"] ?: "?"}, limit ${m["qualityLimitationReason"] ?: "none"}",
+                            )
+                        } else {
+                            note("stats: ${conn.connectionState()}, no video being sent yet")
+                        }
+                    }
+                }
+            }
+            if (running) main.postDelayed(this, 5000)
         }
     }
 
@@ -115,8 +164,10 @@ class CameraStreamer(
                 textureHelper = null
                 source = null
                 IntercomState.set { it.copy(cameraOn = false, cameraError = "No camera found on this phone") }
+                note("ERROR no camera found")
                 return@exec
             }
+            note("camera opened: ${if (frontFacing) "front" else "back"} lens, sensor ${sensorOrientation}°, ${s.quality.label} @ ${s.fps} fps")
             val t = factory.createVideoTrack("oron-video", src)
             previewSinks.forEach { t.addSink(it) }
             track = t
@@ -125,6 +176,8 @@ class CameraStreamer(
                 it.copy(cameraOn = true, cameraLive = false, cameraSlot = s.slot, cameraError = null, cameraFront = s.front)
             }
             announce()
+            main.removeCallbacks(statsTick)
+            main.postDelayed(statsTick, 5000)
         }
     }
 
@@ -194,6 +247,7 @@ class CameraStreamer(
         exec {
             if (!running) return@exec
             receiverId = null
+            note("asking the laptop for camera slot ${settings.slot}")
             emit(
                 "camera-start",
                 JSONObject()
@@ -244,6 +298,8 @@ class CameraStreamer(
 
     private fun stopInternal(sendStop: Boolean) {
         main.removeCallbacks(pairWatchdog)
+        main.removeCallbacks(statsTick)
+        if (running) note("camera stopped")
         if (sendStop && running) emit("camera-stop", JSONObject())
         closePeer()
         closeCapturer()
@@ -286,6 +342,7 @@ class CameraStreamer(
         closePeer()
         receiverId = peer
         gen = pairGen
+        note("paired with laptop slot ${settings.slot} (gen $pairGen); creating video offer")
         IntercomState.set { it.copy(cameraError = null) }
         val config = PeerConnection.RTCConfiguration(emptyList()).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
@@ -294,11 +351,13 @@ class CameraStreamer(
         val myGen = pairGen
         val conn = factory.createPeerConnection(config, object : PeerConnection.Observer {
             override fun onIceCandidate(c: IceCandidate) {
+                note("local candidate ${candText(c.sdp)}")
                 val cand = JSONObject().put("candidate", c.sdp).put("sdpMid", c.sdpMid).put("sdpMLineIndex", c.sdpMLineIndex)
                 emit("cam-signal", JSONObject().put("to", peer).put("data", JSONObject().put("candidate", cand).put("gen", myGen)))
             }
 
             override fun onConnectionChange(state: PeerConnection.PeerConnectionState) {
+                note("connection state: $state")
                 exec {
                     if (gen != myGen) return@exec
                     val live = state == PeerConnection.PeerConnectionState.CONNECTED
@@ -319,26 +378,33 @@ class CameraStreamer(
             }
 
             override fun onSignalingChange(s: PeerConnection.SignalingState?) {}
-            override fun onIceConnectionChange(s: PeerConnection.IceConnectionState?) {}
+            override fun onIceConnectionChange(s: PeerConnection.IceConnectionState?) { note("ICE state: $s") }
             override fun onIceConnectionReceivingChange(b: Boolean) {}
-            override fun onIceGatheringChange(s: PeerConnection.IceGatheringState?) {}
+            override fun onIceGatheringChange(s: PeerConnection.IceGatheringState?) { note("ICE gathering: $s") }
             override fun onIceCandidatesRemoved(c: Array<out IceCandidate>?) {}
             override fun onAddStream(s: MediaStream?) {}
             override fun onRemoveStream(s: MediaStream?) {}
             override fun onDataChannel(d: DataChannel?) {}
             override fun onRenegotiationNeeded() {}
             override fun onAddTrack(r: RtpReceiver?, s: Array<out MediaStream>?) {}
-        }) ?: return
+        }) ?: run {
+            fail("could not create the video connection")
+            return
+        }
         pc = conn
         sender = track?.let { conn.addTrack(it, listOf("oron-camera")) }
+        if (sender == null) note("WARNING no camera track to send")
         applyEncoding()
-        conn.createOffer(object : Sdp() {
+        conn.createOffer(object : Sdp("create offer") {
             override fun onCreateSuccess(desc: SessionDescription) {
                 exec {
                     if (pc !== conn) return@exec
                     val tuned = SessionDescription(desc.type, preferH264(desc.description))
-                    conn.setLocalDescription(object : Sdp() {
+                    val codecs = Regex("a=rtpmap:\\d+ ([A-Za-z0-9-]+)/").findAll(tuned.description).map { it.groupValues[1] }.distinct().joinToString(", ")
+                    note("offer created; codecs: $codecs")
+                    conn.setLocalDescription(object : Sdp("set local offer") {
                         override fun onSetSuccess() {
+                            note("offer sent to laptop")
                             val sdp = JSONObject().put("type", "offer").put("sdp", tuned.description)
                             emit("cam-signal", JSONObject().put("to", peer).put("data", JSONObject().put("sdp", sdp).put("gen", myGen)))
                         }
@@ -351,13 +417,21 @@ class CameraStreamer(
     fun onSignal(from: String, data: JSONObject) {
         exec {
             val conn = pc ?: return@exec
-            if (from != receiverId) return@exec
-            if (data.has("gen") && data.optInt("gen") != gen) return@exec // from an earlier attempt
+            if (from != receiverId) {
+                note("ignored message from unexpected sender")
+                return@exec
+            }
+            if (data.has("gen") && data.optInt("gen") != gen) {
+                note("ignored stale message (gen ${data.optInt("gen")}, current $gen)")
+                return@exec
+            }
             val sdp = data.optJSONObject("sdp")
             val cand = data.optJSONObject("candidate")
             if (sdp != null && sdp.optString("type") == "answer") {
-                conn.setRemoteDescription(object : Sdp() {
+                note("answer received from laptop")
+                conn.setRemoteDescription(object : Sdp("apply laptop answer") {
                     override fun onSetSuccess() {
+                        note("answer applied")
                         exec {
                             if (pc !== conn) return@exec
                             remoteSet = true
@@ -368,6 +442,7 @@ class CameraStreamer(
                 }, SessionDescription(SessionDescription.Type.ANSWER, sdp.optString("sdp")))
             } else if (cand != null) {
                 val ice = IceCandidate(cand.optString("sdpMid", "0"), cand.optInt("sdpMLineIndex", 0), cand.optString("candidate"))
+                note("laptop candidate ${candText(ice.sdp)}${if (remoteSet) "" else " (held until answer)"}")
                 if (remoteSet) conn.addIceCandidate(ice) else pendingIce.add(ice)
             }
         }
@@ -375,6 +450,7 @@ class CameraStreamer(
 
     fun onUnpair() {
         exec {
+            note("laptop unpaired this camera")
             closePeer()
             receiverId = null
             IntercomState.set { it.copy(cameraLive = false) }
@@ -439,10 +515,10 @@ class CameraStreamer(
         return lines.joinToString("\r\n")
     }
 
-    private open class Sdp : SdpObserver {
+    private open inner class Sdp(private val what: String) : SdpObserver {
         override fun onCreateSuccess(desc: SessionDescription) {}
         override fun onSetSuccess() {}
-        override fun onCreateFailure(error: String?) {}
-        override fun onSetFailure(error: String?) {}
+        override fun onCreateFailure(error: String?) { fail("$what failed: $error") }
+        override fun onSetFailure(error: String?) { fail("$what failed: $error") }
     }
 }

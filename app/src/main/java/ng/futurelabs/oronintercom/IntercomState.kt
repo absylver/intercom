@@ -22,6 +22,7 @@ data class UiState(
     val cameraSlot: Int = 1,
     val cameraFront: Boolean = false,
     val cameraError: String? = null,
+    val cameraLog: List<String> = emptyList(),
 )
 
 object IntercomState {

@@ -346,6 +346,42 @@
                 android:id="@+id/cam_status"
                 style="@style/Note"
                 android:text="Mount the phone, pick its slot, then start. In OBS or vMix choose the matching “Oron Camera”." />
+
+            <TextView
+                android:id="@+id/cam_diag_toggle"
+                style="@style/Label"
+                android:layout_marginTop="16dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:paddingTop="6dp"
+                android:paddingBottom="6dp"
+                android:text="SHOW DIAGNOSTICS ▾" />
+
+            <LinearLayout
+                android:id="@+id/cam_diag"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <TextView
+                    android:id="@+id/cam_log"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="@drawable/field"
+                    android:fontFamily="monospace"
+                    android:lineSpacingExtra="2dp"
+                    android:padding="12dp"
+                    android:text="No camera activity yet."
+                    android:textColor="#CFD3F5"
+                    android:textIsSelectable="true"
+                    android:textSize="10sp" />
+
+                <Button
+                    android:id="@+id/cam_log_copy"
+                    style="@style/GhostButton"
+                    android:layout_marginTop="10dp"
+                    android:text="COPY LOG" />
+            </LinearLayout>
         </LinearLayout>
     </LinearLayout>
 </ScrollView>

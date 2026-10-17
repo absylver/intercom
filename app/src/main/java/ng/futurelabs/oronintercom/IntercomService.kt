@@ -583,6 +583,7 @@ class IntercomService : Service() {
         }
         s.on("camera-error") { args ->
             val msg = args.firstOrNull() as? String ?: return@on
+            camera?.note("laptop says: $msg")
             IntercomState.set { it.copy(cameraError = msg) }
         }
         s.connect()

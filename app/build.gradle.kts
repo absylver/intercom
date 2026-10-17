@@ -11,8 +11,8 @@ android {
         applicationId = "ng.futurelabs.oronintercom"
         minSdk = 24
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.3"
+        versionCode = 5
+        versionName = "1.4"
         // Phones only (ARM): keeps the APK about half the size.
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
