@@ -85,6 +85,8 @@ class MainActivity : AppCompatActivity() {
     private var fullReady = false
     private var fullAttached = false
     private var isFullscreen = false
+    /** Lens the service last reported, to spot changes made from the laptop. */
+    private var lastStateFront: Boolean? = null
     private lateinit var camLog: TextView
     private lateinit var controlsPanel: ControlsPanel
     private var controlsHidden = false
@@ -293,6 +295,16 @@ class MainActivity : AppCompatActivity() {
     /* ---------------- Screen ---------------- */
 
     private fun render(s: UiState) {
+        // The laptop's console can switch lenses: follow it.
+        val seen = lastStateFront
+        lastStateFront = if (s.cameraOn) s.cameraFront else null
+        if (s.cameraOn && seen != null && s.cameraFront != seen && s.cameraFront != camSettings.front) {
+            camSettings = camSettings.copy(front = s.cameraFront)
+            syncChips()
+            if (previewReady) preview.setMirror(camSettings.front)
+            if (fullReady) previewFull.setMirror(camSettings.front)
+            if (isFullscreen) applyFullscreenOrientation()
+        }
         joinPanel.visibility = if (s.running) View.GONE else View.VISIBLE
         livePanel.visibility = if (s.running) View.VISIBLE else View.GONE
         cameraPanel.visibility = if (s.running) View.VISIBLE else View.GONE

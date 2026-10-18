@@ -585,6 +585,17 @@ class IntercomService : Service() {
             camera?.onSignal(o.optString("from"), data)
         }
         s.on("cam-unpair") { camera?.onUnpair() }
+        // Lens / exposure / focus changes made on the laptop's console.
+        s.on("cam-control") { args ->
+            val o = args.firstOrNull() as? JSONObject ?: return@on
+            val id = o.optString("id")
+            if (id.isEmpty()) return@on
+            camera?.applyRemote(id, if (o.isNull("value")) null else o.opt("value")) { front ->
+                val cam = camera ?: return@applyRemote
+                getSharedPreferences("oron", Context.MODE_PRIVATE).edit().putBoolean("camFront", front).apply()
+                cam.update(cam.settings.copy(front = front))
+            }
+        }
         s.on("camera-stopped") { args ->
             val o = args.firstOrNull() as? JSONObject
             camera?.onStoppedByServer(o?.optString("reason") ?: "")
