@@ -31,7 +31,6 @@ import org.webrtc.VideoTrack
 
 /** Video quality presets the operator can pick. */
 enum class Quality(val label: String, val width: Int, val height: Int, val kbps: Int) {
-    QHD1440("2K", 2560, 1440, 14000),
     HD1080("1080p", 1920, 1080, 8000),
     HD720("720p", 1280, 720, 4500),
     SD480("480p", 854, 480, 2000);
@@ -72,7 +71,6 @@ class CameraStreamer(
     private var capturer: OronCameraCapturer? = null
     /** Operator's lens / exposure / focus settings (also mirrored in IntercomState for the screen). */
     private var controls = CameraControls()
-    private var latestCaps: CameraCaps? = null
     private var textureHelper: SurfaceTextureHelper? = null
     private var source: VideoSource? = null
     private var track: VideoTrack? = null
@@ -205,7 +203,6 @@ class CameraStreamer(
             rotationProvider = { frameRotation() },
             onCaps = { c ->
                 IntercomState.set { it.copy(cameraCaps = c) }
-                exec { latestCaps = c; publishControls() }
                 note(
                     "lens can do: zoom up to ${"%.1f".format(c.zoomMax)}x, exposure ${c.evMin}..${c.evMax}" +
                         (if (c.manualSensor) ", manual ISO ${c.isoMin}-${c.isoMax}" else ", no manual ISO") +
@@ -247,34 +244,6 @@ class CameraStreamer(
             IntercomState.set { it.copy(cameraControls = c) }
             capturer?.setControls(c)
             if (before.focusManual && !c.focusManual) capturer?.clearFocusPoint()
-            publishControls()
-        }
-    }
-
-    /** Sends what this lens can do, and the current settings, to the laptop's console. */
-    private fun publishControls() {
-        if (!running) return
-        val cp = latestCaps ?: return
-        runCatching {
-            emit("cam-controls", JSONObject().put("controls", RemoteControls.describe(cp, controls, frontFacing)))
-        }
-    }
-
-    /** A change made on the laptop's console. [onLens] switches front/back (the screen owns that setting). */
-    fun applyRemote(id: String, value: Any?, onLens: (Boolean) -> Unit) {
-        exec {
-            if (!running) return@exec
-            if (id == "lens") {
-                val front = value?.toString() == "front"
-                if (front != settings.front) {
-                    note("laptop switched to the ${if (front) "front" else "back"} lens")
-                    onLens(front)
-                }
-                return@exec
-            }
-            val next = RemoteControls.apply(controls, latestCaps, id, value) ?: return@exec
-            note("laptop changed $id")
-            setControls(next)
         }
     }
 
@@ -311,7 +280,6 @@ class CameraStreamer(
             IntercomState.set { it.copy(cameraControls = controls) }
             cap.focusAt(bx, by)
             note("focus on tapped spot")
-            publishControls()
         }
     }
 
@@ -337,7 +305,6 @@ class CameraStreamer(
             )
             main.removeCallbacks(pairWatchdog)
             main.postDelayed(pairWatchdog, 8000)
-            publishControls()
         }
     }
 
@@ -356,7 +323,6 @@ class CameraStreamer(
                 closeCapturer()
                 openCapturer(s.front)
                 IntercomState.set { it.copy(cameraFront = s.front) }
-                publishControls()
             } else if (s.quality != old.quality || s.fps != old.fps) {
                 capturer?.changeCaptureFormat(s.quality.width, s.quality.height, s.fps)
             }
